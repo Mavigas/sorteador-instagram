@@ -114,8 +114,29 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 }
 .nav-item.is-active .badge { background: rgba(255,255,255,.18); color: inherit; }
 
-.sidebar-foot { margin-top: auto; }
-.conn { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 12px; background: var(--surface-2); font-size: 13px; color: var(--muted); }
+.sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+.user-box { display: flex; flex-direction: column; gap: 8px; }
+.user-hint { font-size: 12.5px; color: var(--muted); padding: 0 4px; line-height: 1.4; }
+.btn.google { background: var(--surface); border-color: var(--line); color: var(--ink); gap: 10px; }
+.btn.google:hover { border-color: var(--ink-2); }
+.g-logo { width: 18px; height: 18px; stroke: none; }
+.user-card { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line-2); }
+.user-card .who { min-width: 0; flex: 1; }
+.user-card .who strong { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.user-card .who small { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .user-card { margin-bottom: 4px; }
+.icon-btn { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border: 0; border-radius: 10px; background: transparent; color: var(--muted); cursor: pointer; }
+.icon-btn:hover { background: var(--surface); color: var(--err); }
+.icon-btn svg { width: 18px; height: 18px; }
+.sync-line { display: flex; align-items: center; gap: 8px; padding: 2px 6px; border: 0; background: none; font: 12.5px var(--font); color: var(--muted); cursor: pointer; text-align: left; }
+.sync-line:hover { color: var(--ink); }
+.sync-line .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); flex: none; }
+.sync-line.is-ok .dot { background: var(--ok); }
+.sync-line.is-syncing .dot { background: var(--warn); animation: blink 1s ease-in-out infinite; }
+.sync-line.is-error { color: var(--err); }
+.sync-line.is-error .dot { background: var(--err); }
+@keyframes blink { 50% { opacity: .3; } }
+.conn { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); font-size: 12.5px; color: var(--muted); }
 .conn .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); flex: none; }
 .conn.is-on .dot { background: var(--ok); box-shadow: 0 0 0 4px var(--ok-soft); }
 .conn.is-on { color: var(--ink-2); }
@@ -424,9 +445,13 @@ details.raw pre { margin: 8px 0 0; padding: 12px; border-radius: 10px; backgroun
   .stats { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 860px) {
-  .app { grid-template-columns: 1fr; }
+  .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
   .sidebar { position: sticky; top: 0; z-index: 20; height: auto; flex-direction: row; align-items: center; gap: 12px; padding: 10px 16px; border-right: 0; border-bottom: 1px solid var(--line); }
-  .brand-text small, .sidebar-foot { display: none; }
+  .brand-text small, .sidebar .conn, .sidebar .user-hint, .sidebar .sync-line, .sidebar .user-card .who, .sidebar .user-card .icon-btn { display: none; }
+  .sidebar-foot { order: 3; margin: 0; }
+  .sidebar .user-card { padding: 0; background: none; border: 0; cursor: pointer; }
+  .sidebar .btn.google { padding: 8px 12px; }
+  .sidebar .btn.google span { display: none; }
   .brand { padding: 0; }
   .brand-mark { width: 36px; height: 36px; }
   .nav { flex-direction: row; margin-left: auto; }

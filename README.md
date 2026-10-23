@@ -34,7 +34,15 @@ Cada sorteio pode ser impresso/salvo em PDF como comprovante e exportado em JSON
 
 ## Onde os dados ficam
 
-Tudo fica no navegador (IndexedDB), sem servidor. Use **Ajustes → Exportar backup** periodicamente para guardar uma cópia ou levar o histórico para outro computador (**Restaurar backup**).
+- **Sem login:** tudo fica no navegador (IndexedDB). Use **Ajustes → Exportar backup** para guardar uma cópia.
+- **Com a conta Google (botão "Entrar com Google"):** cada sorteio é enviado para o Firebase (Firestore) e aparece em qualquer aparelho em que a pessoa entrar. Cada usuário só acessa os próprios dados (regras em `firestore.rules`). O token do Instagram nunca sai do aparelho.
+- Ao entrar, o site oferece enviar para a conta os sorteios feitos antes sem login. Ao sair, as cópias locais da conta são removidas do navegador.
+
+### Firebase (projeto `sorteador-75b4b`)
+
+- Authentication → Método de login: **Google** ativado.
+- Authentication → Configurações → Domínios autorizados: `mavigas.github.io` (e o domínio próprio, quando houver).
+- Firestore → Regras: conteúdo de `firestore.rules` publicado.
 
 ## Limitações da API do Instagram
 
@@ -48,6 +56,8 @@ Tudo fica no navegador (IndexedDB), sem servidor. Use **Ajustes → Exportar bac
 index.html         interface
 css/styles.css     visual (tema claro/escuro automático, responsivo, estilo de impressão)
 js/db.js           armazenamento local (IndexedDB)
+js/cloud.js        login com Google e histórico na nuvem (Firebase)
+firestore.rules    regras de segurança do Firestore
 js/instagram.js    cliente da API com paginação ilimitada e novas tentativas
 js/importer.js     leitura de CSV/JSON/texto e gerador da demonstração
 js/app.js          telas, regras, sorteio, histórico e comprovante

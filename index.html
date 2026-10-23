@@ -42,9 +42,10 @@
     </nav>
 
     <div class="sidebar-foot">
-      <div class="conn" id="connStatus">
+      <div class="user-box" id="userBox"></div>
+      <div class="conn" id="connStatus" title="Conta do Instagram usada para carregar comentários">
         <span class="dot"></span>
-        <span class="conn-text">Sem conta conectada</span>
+        <span class="conn-text">Instagram: não conectado</span>
       </div>
     </div>
   </aside>
@@ -323,11 +324,13 @@
       <header class="view-head">
         <div>
           <p class="eyebrow">Ajustes</p>
-          <h1>Conexão, backup e ajuda</h1>
+          <h1>Conta, conexão e backup</h1>
         </div>
       </header>
 
       <div class="settings-grid">
+        <div class="card" id="accountCard"></div>
+
         <div class="card">
           <h3>Conexão com o Instagram</h3>
           <div class="field">
@@ -350,9 +353,9 @@
           </div>
         </div>
 
-        <div class="card">
-          <h3>Backup do histórico</h3>
-          <p class="muted">O histórico fica salvo neste navegador. Exporte um backup regularmente para guardar em outro lugar ou levar para outro computador.</p>
+        <div class="card span2">
+          <h3>Backup em arquivo</h3>
+          <p class="muted">Com a conta Google conectada, o histórico já fica salvo na nuvem. Mesmo assim, você pode exportar uma cópia em arquivo a qualquer momento, ou restaurar um backup antigo.</p>
           <div class="row wrap">
             <button type="button" class="btn" id="btnBackup">Exportar backup (.json)</button>
             <label class="btn ghost file-btn">Restaurar backup<input type="file" id="restoreInput" accept=".json"></label>
@@ -411,5 +414,6 @@
 <script src="js/instagram.js"></script>
 <script src="js/importer.js"></script>
 <script src="js/app.js"></script>
+<script type="module" src="js/cloud.js"></script>
 </body>
 </html>

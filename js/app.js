@@ -24,7 +24,7 @@
   const highlight = t => esc(t).replace(/@([A-Za-z0-9._]+)/g, '<span class="mention">@$1</span>');
   const initials = u => (String(u || '').replace(/[^a-z0-9]/gi, '').slice(0, 2) || '?');
   const avatar = (u, pic = '', cls = '') =>
-    `<span class="avatar ${cls}">${esc(initials(u))}${pic ? `<img src="${esc(pic)}" alt="" loading="lazy" onerror="this.remove()">` : ''}</span>`;
+    `<span class="avatar ${cls}">${esc(initials(u))}${pic ? `<img src="${esc(pic)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span>`;
   const ICON_COMMENT = '<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>';
 
   function toast(msg, type = 'info', ms = 4500) {
@@ -37,6 +37,7 @@
 
   function confirmDialog(title, text, okLabel = 'Confirmar') {
     const dlg = $('#modal');
+    if (dlg.open) return Promise.resolve(false);
     $('#modalTitle').textContent = title;
     $('#modalText').textContent = text;
     $('#modalOk').textContent = okLabel;
@@ -102,6 +103,10 @@
     currentDraw: null,
     drawing: false,
     elig: null,
+    user: null,            // conta Google conectada (Firebase)
+    authReady: false,
+    sync: 'idle',          // idle | syncing | ok | error
+    askedImport: false,
   };
 
   function freshLoader(includeReplies) {
@@ -163,11 +168,11 @@
     const box = $('#connStatus');
     const on = !!S.account;
     box.classList.toggle('is-on', on);
-    $('.conn-text', box).textContent = on ? `Conectado: @${S.account.username}` : S.token ? 'Token salvo — conecte em Novo sorteio' : 'Sem conta conectada';
+    $('.conn-text', box).textContent = on ? `Instagram: @${S.account.username}` : S.token ? 'Instagram: token salvo' : 'Instagram: não conectado';
   }
 
   async function updateHistoryCount() {
-    try { $('#historyCount').textContent = fmt(await DB.count('draws')); } catch { /* sem IndexedDB */ }
+    try { $('#historyCount').textContent = fmt((await allDraws()).length); } catch { /* sem IndexedDB */ }
   }
 
   /* =========================================================
@@ -742,6 +747,8 @@
     let record;
     try {
       record = await buildRecord(r, el);
+      record.owner = S.user?.uid || null;
+      record.synced = false;
       await DB.put('draws', record); // salvo antes da animação: o resultado já está travado
     } catch (e) {
       S.drawing = false; btn.disabled = false;
@@ -749,6 +756,7 @@
     }
     S.currentDraw = record;
     updateHistoryCount();
+    if (record.owner) uploadDraw(record); // envia para a nuvem em segundo plano, durante a animação
 
     const fast = $('#optFast').checked;
     for (const res of record.results) {
@@ -867,8 +875,10 @@
   /* =========================================================
      Histórico
      ========================================================= */
+  // Sorteios visíveis agora: os da conta Google conectada, ou os sem dono quando ninguém entrou.
   async function allDraws() {
-    const list = await DB.all('draws');
+    const owner = S.user?.uid || null;
+    const list = (await DB.all('draws')).filter(d => (d.owner || null) === owner);
     return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
@@ -890,7 +900,7 @@
         <span class="h-main">
           <strong class="h-title">${esc(d.title)}</strong>
           <span class="h-meta">${esc(d.code)} · ${esc(fmtDate(d.createdAt))} · ${esc(SOURCE_LABEL[d.source.type] || '')}${d.post?.username ? ' · @' + esc(d.post.username) : ''}</span>
-          <span class="h-winners">${winners.map(w => `<span class="pill accent">🏆 @${esc(w.comment.username)}</span>`).join('')}${subs ? `<span class="pill">+${plural(subs, 'suplente', 'suplentes')}</span>` : ''}${d.demo ? '<span class="pill warn">Demo</span>' : ''}${d.load.complete ? '' : '<span class="pill warn">Lista incompleta</span>'}</span>
+          <span class="h-winners">${winners.map(w => `<span class="pill accent">🏆 @${esc(w.comment.username)}</span>`).join('')}${subs ? `<span class="pill">+${plural(subs, 'suplente', 'suplentes')}</span>` : ''}${d.demo ? '<span class="pill warn">Demo</span>' : ''}${d.load.complete ? '' : '<span class="pill warn">Lista incompleta</span>'}${d.owner && !d.synced ? '<span class="pill warn">Aguardando envio à nuvem</span>' : ''}</span>
         </span>
         <span class="h-side"><strong>${fmt(d.eligibility.entries)}</strong>participações</span>
       </button>`;
@@ -904,8 +914,17 @@
   const yesNo = b => (b ? 'Sim' : 'Não');
 
   async function openDetail(id) {
-    const d = await DB.get('draws', id);
+    let d = await DB.get('draws', id);
     if (!d) return toast('Sorteio não encontrado.', 'error');
+    if (!d.participants && d.participantsInCloud && S.user && window.Cloud) {
+      toast('Buscando a lista de participantes na nuvem…', 'info', 2500);
+      try {
+        d = { ...d, participants: await Cloud.getParticipants(id) };
+        await DB.put('draws', d);
+      } catch (e) {
+        toast('Não foi possível buscar os participantes: ' + (e.message || e), 'error', 7000);
+      }
+    }
     showView('detail');
     const R = d.rules;
     const P = d.post;
@@ -919,6 +938,7 @@
           <p class="eyebrow">Comprovante de sorteio${d.demo ? ' · demonstração' : ''}</p>
           <h1>${esc(d.title)}</h1>
           <p class="code">${esc(d.code)} · realizado em ${esc(fmtDate(d.createdAt))}</p>
+          <p class="no-print" style="margin-top:8px">${d.owner ? (d.synced ? '<span class="pill ok">Salvo na sua conta Google</span>' : '<span class="pill warn">Aguardando envio à nuvem</span>') : '<span class="pill">Salvo só neste navegador</span>'}</p>
         </div>
         <div class="row wrap no-print">
           <button type="button" class="btn" data-act="print">Imprimir / PDF</button>
@@ -1010,7 +1030,7 @@
             <tbody id="partBody"></tbody>
           </table></div>
           <p class="muted small" id="partNote" style="margin-top:10px"></p>`
-        : '<p class="muted">A lista completa de participantes não foi salva neste sorteio (opção desativada nas regras).</p>'}
+        : `<p class="muted">${d.participantsInCloud ? 'A lista de participantes está na nuvem. Entre com a conta Google para vê-la.' : 'A lista completa de participantes não foi salva neste sorteio (opção desativada nas regras).'}</p>`}
       </div>`;
 
     $('#detail').dataset.id = d.id;
@@ -1050,8 +1070,12 @@
       download(`${d.code}-participantes.csv`, '﻿' + [head.join(';'), ...lines].join('\r\n'), 'text/csv;charset=utf-8');
     }
     if (act === 'delete') {
-      const ok = await confirmDialog('Excluir este sorteio?', `O registro ${d.code} será apagado deste navegador. Exporte o JSON antes se quiser guardar uma cópia.`, 'Excluir');
+      const where = d.owner ? 'da sua conta Google e de todos os aparelhos' : 'deste navegador';
+      const ok = await confirmDialog('Excluir este sorteio?', `O registro ${d.code} será apagado ${where}. Exporte o JSON antes se quiser guardar uma cópia.`, 'Excluir');
       if (!ok) return;
+      if (d.owner && d.synced) {
+        try { await Cloud.deleteDraw(id); } catch (e) { return toast('Não foi possível excluir da nuvem: ' + (e.message || e), 'error', 7000); }
+      }
       await DB.del('draws', id);
       if (S.currentDraw?.id === id) S.currentDraw = null;
       updateHistoryCount();
@@ -1090,6 +1114,11 @@
   async function exportBackup() {
     const draws = await allDraws();
     if (!draws.length) return toast('Ainda não há sorteios para exportar.', 'warn');
+    for (const d of draws) {
+      if (!d.participants && d.participantsInCloud && S.user) {
+        try { d.participants = await Cloud.getParticipants(d.id); } catch { /* exporta sem a lista */ }
+      }
+    }
     const stamp = new Date().toISOString().slice(0, 10);
     download(`backup-sorteios-${stamp}.json`, JSON.stringify({ app: 'sorteador-instagram', version: APP_VERSION, exportedAt: new Date().toISOString(), draws }, null, 2), 'application/json');
   }
@@ -1102,15 +1131,209 @@
         const data = JSON.parse(String(reader.result));
         const draws = (Array.isArray(data) ? data : data.draws || [data]).filter(d => d && d.id && d.code && Array.isArray(d.results));
         if (!draws.length) throw new Error('Nenhum sorteio válido no arquivo.');
-        for (const d of draws) await DB.put('draws', d);
+        for (const d of draws) await DB.put('draws', { ...d, owner: S.user?.uid || null, synced: false });
         updateHistoryCount();
         toast(`${plural(draws.length, 'sorteio restaurado', 'sorteios restaurados')}.`, 'success');
+        if (S.user) syncWithCloud();
       } catch (e) {
         toast('Backup inválido: ' + e.message, 'error', 7000);
       }
       $('#restoreInput').value = '';
     };
     reader.readAsText(file);
+  }
+
+  /* =========================================================
+     Conta Google e nuvem
+     ========================================================= */
+  const ICON_GOOGLE = '<svg class="g-logo" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
+  const ICON_LOGOUT = '<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>';
+  const SYNC_LABEL = { idle: 'Conectando à nuvem…', syncing: 'Sincronizando…', ok: 'Histórico salvo na nuvem', error: 'Falha ao sincronizar · tentar de novo' };
+
+  function cloudError(e) {
+    const code = e?.code || '';
+    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return null;
+    if (code === 'auth/unauthorized-domain') return `Este endereço (${location.hostname}) ainda não está autorizado no Firebase. Adicione-o em Authentication → Configurações → Domínios autorizados.`;
+    if (code === 'auth/network-request-failed' || code === 'unavailable') return 'Sem conexão com a nuvem. Os sorteios ficam neste aparelho e são enviados quando a conexão voltar.';
+    if (code === 'permission-denied') return 'A nuvem recusou o acesso. Confira se as regras de segurança do Firestore foram publicadas.';
+    if (code === 'auth/operation-not-allowed') return 'O login com Google não está ativado no Firebase (Authentication → Método de login).';
+    return `Nuvem: ${e?.message || e}`;
+  }
+
+  function renderUserBox() {
+    const box = $('#userBox');
+    if (!S.authReady) {
+      box.innerHTML = '<p class="user-hint">Verificando conta…</p>';
+    } else if (!S.user) {
+      box.innerHTML = `
+        <button type="button" class="btn google block" data-cloud="signin">${ICON_GOOGLE}<span>Entrar com Google</span></button>
+        <p class="user-hint">Entre para guardar seus sorteios na nuvem e acessar de qualquer aparelho.</p>`;
+    } else {
+      const u = S.user;
+      box.innerHTML = `
+        <div class="user-card" data-goto-view="settings" title="Conta e sincronização">
+          ${avatar(u.name || u.email, u.photo)}
+          <div class="who"><strong>${esc(u.name || 'Minha conta')}</strong><small>${esc(u.email)}</small></div>
+          <button type="button" class="icon-btn" data-cloud="signout" title="Sair da conta" aria-label="Sair da conta">${ICON_LOGOUT}</button>
+        </div>
+        <button type="button" class="sync-line is-${S.sync}" data-cloud="sync" title="Sincronizar agora"><span class="dot"></span><span>${SYNC_LABEL[S.sync]}</span></button>`;
+    }
+    renderAccountCard();
+  }
+
+  async function renderAccountCard() {
+    const card = $('#accountCard');
+    if (!S.user) {
+      card.innerHTML = `
+        <h3>Conta Google</h3>
+        <p class="muted">Sem login, os sorteios ficam salvos apenas neste navegador. Entre com sua conta Google para guardar o histórico na nuvem, com segurança, e acessá-lo de qualquer computador ou celular.</p>
+        <button type="button" class="btn google" data-cloud="signin">${ICON_GOOGLE}<span>Entrar com Google</span></button>`;
+      return;
+    }
+    const all = await DB.all('draws').catch(() => []);
+    const mine = all.filter(d => d.owner === S.user.uid);
+    const pending = mine.filter(d => !d.synced).length;
+    const anon = all.filter(d => !d.owner).length;
+    const u = S.user;
+    card.innerHTML = `
+      <h3>Conta Google</h3>
+      <div class="user-card">${avatar(u.name || u.email, u.photo, 'lg')}<div class="who"><strong>${esc(u.name || 'Minha conta')}</strong><small>${esc(u.email)}</small></div></div>
+      ${kv([
+        ['Sorteios na nuvem', fmt(mine.length - pending)],
+        pending && ['Aguardando envio', fmt(pending)],
+        ['Situação', esc(SYNC_LABEL[S.sync])],
+      ])}
+      ${anon ? `<p class="muted small" style="margin-top:14px">${plural(anon, 'sorteio feito', 'sorteios feitos')} sem login neste navegador ainda não ${anon === 1 ? 'está' : 'estão'} na sua conta.</p>` : ''}
+      <div class="row wrap" style="margin-top:16px">
+        <button type="button" class="btn" data-cloud="sync">Sincronizar agora</button>
+        ${anon ? '<button type="button" class="btn" data-cloud="import">Enviar para minha conta</button>' : ''}
+        <button type="button" class="btn ghost" data-cloud="signout">Sair da conta</button>
+      </div>`;
+  }
+
+  function initCloud() {
+    if (S.cloudInit || !window.Cloud) return;
+    S.cloudInit = true;
+    Cloud.onChange(onUserChange);
+  }
+
+  async function onUserChange(user) {
+    S.user = user;
+    S.authReady = true;
+    S.sync = user ? 'syncing' : 'idle';
+    renderUserBox();
+    // O detalhe aberto pode ser de outra conta: volta para a lista.
+    if ($('#view-detail').classList.contains('is-active')) showView('history');
+    if (user) {
+      Cloud.touchProfile().catch(() => {});
+      await syncWithCloud();
+    } else {
+      refreshHistory();
+    }
+  }
+
+  function refreshHistory() {
+    updateHistoryCount();
+    if ($('#view-history').classList.contains('is-active')) renderHistory();
+  }
+
+  async function uploadDraw(rec, quiet = false) {
+    try {
+      await Cloud.saveDraw(rec);
+      const cur = await DB.get('draws', rec.id);
+      if (cur) await DB.put('draws', { ...cur, synced: true, participantsInCloud: !!(cur.participants && cur.participants.length) });
+      if (S.currentDraw?.id === rec.id) S.currentDraw.synced = true;
+      if (!quiet) { S.sync = 'ok'; renderUserBox(); }
+      return true;
+    } catch (e) {
+      console.warn('Envio à nuvem falhou', e);
+      S.sync = 'error';
+      renderUserBox();
+      if (!quiet) toast('Sorteio salvo neste aparelho, mas o envio para a nuvem falhou. Ele será reenviado na próxima sincronização.', 'warn', 8000);
+      return false;
+    }
+  }
+
+  // Envia o que está pendente e traz da nuvem o que foi feito em outros aparelhos.
+  async function syncWithCloud() {
+    if (!S.user || S.syncing) return;
+    S.syncing = true;
+    S.sync = 'syncing';
+    renderUserBox();
+    const uid = S.user.uid;
+    try {
+      const local = await DB.all('draws');
+      let failed = 0;
+      for (const d of local.filter(x => x.owner === uid && !x.synced)) if (!(await uploadDraw(d, true))) failed++;
+      const remote = await Cloud.listDraws();
+      if (S.user?.uid !== uid) return;
+      const byId = new Map(local.map(d => [d.id, d]));
+      const remoteIds = new Set(remote.map(r => r.id));
+      for (const r of remote) {
+        await DB.put('draws', { ...r, owner: uid, synced: true, participants: byId.get(r.id)?.participants || null });
+      }
+      // Excluídos em outro aparelho
+      for (const l of local) if (l.owner === uid && l.synced && !remoteIds.has(l.id)) await DB.del('draws', l.id);
+      S.sync = failed ? 'error' : 'ok';
+      const anon = local.filter(d => !d.owner).length;
+      if (anon && !S.askedImport) { S.askedImport = true; setTimeout(() => offerImport(anon), 500); }
+    } catch (e) {
+      S.sync = 'error';
+      const m = cloudError(e);
+      if (m) toast(m, 'error', 9000);
+    } finally {
+      S.syncing = false;
+      renderUserBox();
+      refreshHistory();
+    }
+  }
+
+  async function offerImport(n) {
+    const ok = await confirmDialog('Guardar sorteios na sua conta?',
+      `Este navegador tem ${plural(n, 'sorteio feito', 'sorteios feitos')} sem login. Deseja enviá-${n === 1 ? 'lo' : 'los'} para a sua conta Google? Você também pode fazer isso depois em Ajustes.`, 'Enviar para a conta');
+    if (ok) importAnon();
+  }
+
+  async function importAnon() {
+    if (!S.user) return;
+    const anon = (await DB.all('draws')).filter(d => !d.owner);
+    if (!anon.length) return;
+    for (const d of anon) await DB.put('draws', { ...d, owner: S.user.uid, synced: false });
+    await syncWithCloud();
+    if (S.sync === 'ok') toast(`${plural(anon.length, 'sorteio enviado', 'sorteios enviados')} para a sua conta.`, 'success');
+  }
+
+  async function signIn() {
+    if (!window.Cloud) return toast('O login não está disponível agora. Verifique a internet e recarregue a página.', 'error', 7000);
+    try {
+      await Cloud.signIn();
+    } catch (e) {
+      const m = cloudError(e);
+      if (m) toast(m, 'error', 9000);
+    }
+  }
+
+  async function signOutFlow() {
+    if (!S.user) return;
+    const uid = S.user.uid;
+    const ownPending = async () => (await DB.all('draws')).filter(d => d.owner === uid && !d.synced).length;
+    if (await ownPending()) await syncWithCloud();
+    const still = await ownPending();
+    const ok = await confirmDialog('Sair da conta?', still
+      ? `${plural(still, 'sorteio ainda não foi enviado', 'sorteios ainda não foram enviados')} para a nuvem e ${still === 1 ? 'fica' : 'ficam'} guardado${still === 1 ? '' : 's'} neste navegador até você entrar de novo.`
+      : 'Seus sorteios continuam salvos na sua conta Google. As cópias deste navegador serão removidas.', 'Sair');
+    if (!ok) return;
+    for (const d of await DB.all('draws')) if (d.owner === uid && d.synced) await DB.del('draws', d.id);
+    if (S.currentDraw?.owner === uid) S.currentDraw = null;
+    await Cloud.signOut();
+    toast('Você saiu da conta.');
+  }
+
+  function cloudAction(act) {
+    if (act === 'signin') signIn();
+    if (act === 'signout') signOutFlow();
+    if (act === 'sync') syncWithCloud();
+    if (act === 'import') importAnon();
   }
 
   /* =========================================================
@@ -1121,9 +1344,10 @@
     $$('#stepper button').forEach(b => b.addEventListener('click', () => goStep(Number(b.closest('li').dataset.step))));
 
     document.addEventListener('click', e => {
-      const t = e.target.closest('[data-goto-view],[data-goto],[data-acc],[data-post],[data-draw],[data-act]');
+      const t = e.target.closest('[data-goto-view],[data-goto],[data-acc],[data-post],[data-draw],[data-act],[data-cloud]');
       if (!t) return;
-      if (t.dataset.gotoView) showView(t.dataset.gotoView);
+      if (t.dataset.cloud) cloudAction(t.dataset.cloud);
+      else if (t.dataset.gotoView) showView(t.dataset.gotoView);
       else if (t.dataset.goto) goStep(Number(t.dataset.goto));
       else if (t.dataset.acc) selectAccount(S.accounts[Number(t.dataset.acc)]);
       else if (t.dataset.post) choosePost(S.posts[Number(t.dataset.post)], 'api');
@@ -1175,6 +1399,9 @@
       toast('Cache de comentários limpo.');
     });
 
+    window.addEventListener('online', () => { if (S.user) syncWithCloud(); });
+    window.addEventListener('cloud:ready', initCloud);
+
     window.addEventListener('beforeunload', e => {
       if (S.loader.running || S.drawing) { saveCache(); e.preventDefault(); e.returnValue = ''; }
     });
@@ -1184,6 +1411,10 @@
     bind();
     updateConn();
     updateHistoryCount();
+    renderUserBox();
+    initCloud();
+    // Sem resposta do Firebase (offline ou bloqueado): libera o modo local.
+    setTimeout(() => { if (!S.authReady) { S.authReady = true; renderUserBox(); } }, 8000);
     goStep(1);
     if (!window.indexedDB) toast('Este navegador não permite salvar o histórico (IndexedDB indisponível).', 'error', 10000);
   }
