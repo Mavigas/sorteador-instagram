@@ -8,9 +8,10 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 import {
   getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut,
+  deleteUser, reauthenticateWithPopup,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import {
-  getFirestore, doc, setDoc, getDocs, collection, query, orderBy, writeBatch, serverTimestamp,
+  getFirestore, doc, setDoc, getDocs, deleteDoc, collection, query, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 
 // Configuração pública do app web (não é senha; o acesso é controlado pelas regras do Firestore).
@@ -135,6 +136,22 @@ const Cloud = {
     parts.docs.forEach(d => batch.delete(d.ref));
     batch.delete(ref);
     await batch.commit();
+  },
+
+  // Direito de eliminação (LGPD): apaga sorteios, perfil e o cadastro de login.
+  async deleteAccount() {
+    const u = auth.currentUser;
+    if (!u) throw new Error('Entre com sua conta Google primeiro.');
+    const draws = await getDocs(drawsCol(u.uid));
+    for (const d of draws.docs) await Cloud.deleteDraw(d.id);
+    await deleteDoc(doc(db, 'users', u.uid));
+    try {
+      await deleteUser(u);
+    } catch (e) {
+      if (e.code !== 'auth/requires-recent-login') throw e;
+      await reauthenticateWithPopup(u, provider);
+      await deleteUser(u);
+    }
   },
 };
 

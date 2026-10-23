@@ -1167,7 +1167,7 @@
     } else if (!S.user) {
       box.innerHTML = `
         <button type="button" class="btn google block" data-cloud="signin">${ICON_GOOGLE}<span>Entrar com Google</span></button>
-        <p class="user-hint">Entre para guardar seus sorteios na nuvem e acessar de qualquer aparelho.</p>`;
+        <p class="user-hint">Entre para guardar seus sorteios na nuvem e acessar de qualquer aparelho. Ao entrar, você aceita os <a href="termos.html">Termos</a> e a <a href="privacidade.html">Privacidade</a>.</p>`;
     } else {
       const u = S.user;
       box.innerHTML = `
@@ -1187,7 +1187,8 @@
       card.innerHTML = `
         <h3>Conta Google</h3>
         <p class="muted">Sem login, os sorteios ficam salvos apenas neste navegador. Entre com sua conta Google para guardar o histórico na nuvem, com segurança, e acessá-lo de qualquer computador ou celular.</p>
-        <button type="button" class="btn google" data-cloud="signin">${ICON_GOOGLE}<span>Entrar com Google</span></button>`;
+        <button type="button" class="btn google" data-cloud="signin">${ICON_GOOGLE}<span>Entrar com Google</span></button>
+        <p class="muted small" style="margin-top:12px">Ao entrar, você concorda com os <a href="termos.html">Termos de Uso</a> e a <a href="privacidade.html">Política de Privacidade</a>.</p>`;
       return;
     }
     const all = await DB.all('draws').catch(() => []);
@@ -1208,7 +1209,29 @@
         <button type="button" class="btn" data-cloud="sync">Sincronizar agora</button>
         ${anon ? '<button type="button" class="btn" data-cloud="import">Enviar para minha conta</button>' : ''}
         <button type="button" class="btn ghost" data-cloud="signout">Sair da conta</button>
-      </div>`;
+      </div>
+      <hr>
+      <p class="muted small">Quer apagar tudo? Isso remove seus sorteios da nuvem, seu perfil e o cadastro de login. <a href="privacidade.html#direitos">Seus direitos</a></p>
+      <button type="button" class="btn ghost danger" data-cloud="deleteAccount" style="margin-top:10px">Excluir minha conta e dados</button>`;
+  }
+
+  async function deleteAccountFlow() {
+    if (!S.user) return;
+    const uid = S.user.uid;
+    const ok = await confirmDialog('Excluir conta e todos os dados?',
+      'Todos os sorteios salvos na nuvem, seu perfil e o cadastro de login serão apagados de forma definitiva. Se quiser guardar uma cópia, use antes “Exportar backup”. O Google pode pedir para você confirmar a conta.', 'Excluir tudo');
+    if (!ok) return;
+    try {
+      await Cloud.deleteAccount();
+    } catch (e) {
+      const m = cloudError(e);
+      if (m) toast('Não foi possível concluir a exclusão. ' + m, 'error', 9000);
+      return;
+    }
+    for (const d of await DB.all('draws')) if (d.owner === uid) await DB.del('draws', d.id);
+    if (S.currentDraw?.owner === uid) S.currentDraw = null;
+    refreshHistory();
+    toast('Sua conta e seus dados foram excluídos.', 'success', 6000);
   }
 
   function initCloud() {
@@ -1334,6 +1357,7 @@
     if (act === 'signout') signOutFlow();
     if (act === 'sync') syncWithCloud();
     if (act === 'import') importAnon();
+    if (act === 'deleteAccount') deleteAccountFlow();
   }
 
   /* =========================================================
