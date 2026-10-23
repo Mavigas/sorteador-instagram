@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sorteador de Comentários</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23FF8A3D'/%3E%3Cstop offset='.5' stop-color='%23E2336B'/%3E%3Cstop offset='1' stop-color='%237B3FF2'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Cpath d='M9 12h14v3a2 2 0 0 0 0 4v3H9v-3a2 2 0 0 0 0-4z' fill='none' stroke='white' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E">
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ Barra lateral ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M4 8h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4z"/><path d="M14 8v10" stroke-dasharray="1.6 2"/></svg>
+      </span>
+      <div class="brand-text">
+        <strong>Sorteador</strong>
+        <small>comentários do Instagram</small>
+      </div>
+    </div>
+
+    <nav class="nav" aria-label="Navegação principal">
+      <button class="nav-item is-active" data-view="new">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        <span>Novo sorteio</span>
+      </button>
+      <button class="nav-item" data-view="history">
+        <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 2"/></svg>
+        <span>Histórico</span>
+        <span class="badge" id="historyCount">0</span>
+      </button>
+      <button class="nav-item" data-view="settings">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        <span>Ajustes</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="conn" id="connStatus">
+        <span class="dot"></span>
+        <span class="conn-text">Sem conta conectada</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ Conteúdo ============ -->
+  <main class="main">
+
+    <!-- ===== Novo sorteio ===== -->
+    <section class="view is-active" id="view-new">
+      <header class="view-head">
+        <div>
+          <p class="eyebrow">Novo sorteio</p>
+          <h1>Sorteie entre <em>todos</em> os comentários</h1>
+        </div>
+      </header>
+
+      <ol class="stepper" id="stepper">
+        <li data-step="1"><button type="button"><span class="num">1</span><span class="lbl">Origem</span></button></li>
+        <li data-step="2"><button type="button"><span class="num">2</span><span class="lbl">Comentários</span></button></li>
+        <li data-step="3"><button type="button"><span class="num">3</span><span class="lbl">Regras</span></button></li>
+        <li data-step="4"><button type="button"><span class="num">4</span><span class="lbl">Sorteio</span></button></li>
+      </ol>
+
+      <!-- Passo 1: origem -->
+      <div class="step-panel" data-panel="1">
+        <div class="source-grid">
+          <button type="button" class="source-card" data-source="api">
+            <span class="source-ico"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6" fill="currentColor"/></svg></span>
+            <span class="tag">Recomendado</span>
+            <h3>Minha conta profissional</h3>
+            <p>Conecta pela API oficial do Instagram e carrega <strong>todos</strong> os comentários da publicação, página por página, sem limite.</p>
+          </button>
+          <button type="button" class="source-card" data-source="import">
+            <span class="source-ico"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg></span>
+            <h3>Importar lista</h3>
+            <p>Arquivo CSV, JSON ou texto colado. Útil para publicações de outras contas ou exportações de terceiros.</p>
+          </button>
+          <button type="button" class="source-card" data-source="demo">
+            <span class="source-ico"><svg viewBox="0 0 24 24"><path d="M9 3h6M10 3v6L4.5 18.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3"/><path d="M7 15h10"/></svg></span>
+            <h3>Demonstração</h3>
+            <p>Gera milhares de comentários fictícios para você conhecer o fluxo antes de usar de verdade.</p>
+          </button>
+        </div>
+
+        <!-- API -->
+        <div class="source-body" id="src-api" hidden>
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h3>Conectar conta</h3>
+                <p class="muted">Cole um token de acesso da API do Instagram (começa com <code>IG</code>) ou da API do Facebook (começa com <code>EAA</code>).</p>
+              </div>
+              <button type="button" class="btn link" data-goto-view="settings">Como obter o token?</button>
+            </div>
+            <div class="row">
+              <input type="password" id="tokenInput" class="input grow" placeholder="Token de acesso" autocomplete="off" spellcheck="false">
+              <button type="button" class="btn primary" id="btnConnect">Conectar</button>
+            </div>
+            <div id="accountBox" class="account-box"></div>
+          </div>
+
+          <div class="card" id="postPicker" hidden>
+            <div class="card-head">
+              <div>
+                <h3>Escolha a publicação</h3>
+                <p class="muted">Clique em uma publicação ou cole o link dela.</p>
+              </div>
+              <div class="row">
+                <input type="url" id="postLink" class="input" placeholder="https://www.instagram.com/p/…">
+                <button type="button" class="btn" id="btnFindLink">Buscar</button>
+              </div>
+            </div>
+            <div class="post-grid" id="postGrid"></div>
+            <div class="center"><button type="button" class="btn ghost" id="btnMorePosts" hidden>Carregar mais publicações</button></div>
+          </div>
+        </div>
+
+        <!-- Importar -->
+        <div class="source-body" id="src-import" hidden>
+          <div class="card">
+            <div class="card-head"><div><h3>Importar comentários</h3><p class="muted">Colunas reconhecidas automaticamente: usuário, comentário, data, curtidas, id.</p></div></div>
+            <label class="dropzone" id="dropzone">
+              <input type="file" id="fileInput" accept=".csv,.json,.txt,.tsv">
+              <svg viewBox="0 0 24 24"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+              <span><strong>Arraste um arquivo</strong> ou clique para escolher</span>
+              <small id="fileName">CSV, JSON ou TXT</small>
+            </label>
+            <div class="field">
+              <label for="pasteInput">Ou cole os comentários — um por linha, no formato <code>@usuario comentário</code></label>
+              <textarea id="pasteInput" class="input" rows="7" placeholder="@maria.silva Quero ganhar! @joao @ana&#10;@pedro_r Participando @lucas"></textarea>
+            </div>
+            <div class="grid3">
+              <div class="field"><label for="importLink">Link da publicação <span class="opt">opcional</span></label><input id="importLink" class="input" type="url" placeholder="https://www.instagram.com/p/…"></div>
+              <div class="field"><label for="importOwner">Perfil dono da publicação <span class="opt">opcional</span></label><input id="importOwner" class="input" placeholder="@suamarca"></div>
+              <div class="field"><label for="importCaption">Descrição <span class="opt">opcional</span></label><input id="importCaption" class="input" placeholder="Sorteio de aniversário"></div>
+            </div>
+            <div class="actions-end"><button type="button" class="btn primary" id="btnImport">Importar e continuar</button></div>
+          </div>
+        </div>
+
+        <!-- Demo -->
+        <div class="source-body" id="src-demo" hidden>
+          <div class="card">
+            <div class="card-head"><div><h3>Modo demonstração</h3><p class="muted">Os sorteios de demonstração também ficam no histórico, marcados como “Demo”.</p></div></div>
+            <div class="field">
+              <label for="demoCount">Quantidade de comentários: <strong id="demoCountOut">5.000</strong></label>
+              <input type="range" id="demoCount" min="100" max="100000" step="100" value="5000">
+            </div>
+            <div class="actions-end"><button type="button" class="btn primary" id="btnDemo">Gerar comentários</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Passo 2: comentários -->
+      <div class="step-panel" data-panel="2" hidden>
+        <div class="post-summary card" id="postSummary"></div>
+
+        <div class="card load-card">
+          <div class="card-head">
+            <div>
+              <h3 id="loadTitle">Comentários</h3>
+              <p class="muted" id="loadSub"></p>
+            </div>
+            <div class="row wrap" id="loadControls">
+              <label class="switch"><input type="checkbox" id="optReplies"><span class="track"></span><span>Incluir respostas</span></label>
+              <button type="button" class="btn ghost" id="btnLoadReset">Recarregar do zero</button>
+              <button type="button" class="btn" id="btnLoadPause" hidden>Pausar</button>
+              <button type="button" class="btn primary" id="btnLoadStart">Carregar</button>
+            </div>
+          </div>
+          <div class="progress" aria-hidden="true"><div class="progress-bar" id="progressBar"></div></div>
+          <div class="stats">
+            <div class="stat"><span class="stat-num" id="stLoaded">0</span><span class="stat-lbl">comentários carregados</span></div>
+            <div class="stat"><span class="stat-num" id="stReplies">0</span><span class="stat-lbl">respostas</span></div>
+            <div class="stat"><span class="stat-num" id="stUsers">0</span><span class="stat-lbl">perfis diferentes</span></div>
+            <div class="stat"><span class="stat-num" id="stPages">0</span><span class="stat-lbl">páginas lidas</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Lista de comentários</h3>
+            <input type="search" id="commentSearch" class="input" placeholder="Buscar por perfil ou texto">
+          </div>
+          <div class="table-wrap">
+            <table class="table">
+              <thead><tr><th>#</th><th>Perfil</th><th>Comentário</th><th>Data</th><th class="num">Curtidas</th></tr></thead>
+              <tbody id="commentsBody"></tbody>
+            </table>
+          </div>
+          <p class="muted small" id="tableNote"></p>
+        </div>
+
+        <div class="step-nav">
+          <button type="button" class="btn ghost" data-goto="1">Voltar</button>
+          <button type="button" class="btn primary" data-goto="3" id="btnToRules">Definir regras</button>
+        </div>
+      </div>
+
+      <!-- Passo 3: regras -->
+      <div class="step-panel" data-panel="3" hidden>
+        <div class="rules-layout">
+          <form class="card rules-form" id="rulesForm" onsubmit="return false">
+            <div class="field">
+              <label for="ruleTitle">Nome do sorteio</label>
+              <input id="ruleTitle" class="input" placeholder="Ex.: Sorteio de aniversário — kit de produtos">
+            </div>
+            <div class="grid2">
+              <div class="field"><label for="ruleWinners">Ganhadores</label><input id="ruleWinners" class="input" type="number" min="1" value="1"></div>
+              <div class="field"><label for="ruleSubs">Suplentes</label><input id="ruleSubs" class="input" type="number" min="0" value="0"></div>
+            </div>
+
+            <fieldset class="field">
+              <legend>Como contar as participações</legend>
+              <div class="segmented">
+                <label><input type="radio" name="ruleMode" value="perUser" checked><span><strong>1 chance por perfil</strong><small>Comentários repetidos do mesmo perfil não aumentam a chance.</small></span></label>
+                <label><input type="radio" name="ruleMode" value="perComment"><span><strong>1 chance por comentário</strong><small>Quem comentou mais vezes tem mais chances.</small></span></label>
+              </div>
+            </fieldset>
+
+            <div class="grid2">
+              <div class="field"><label for="ruleMentions">Menções mínimas (@amigos)</label><input id="ruleMentions" class="input" type="number" min="0" value="0"></div>
+              <div class="field"><label for="ruleUntil">Aceitar comentários até <span class="opt">opcional</span></label><input id="ruleUntil" class="input" type="datetime-local"></div>
+            </div>
+
+            <div class="field">
+              <label for="ruleKeyword">Palavra ou hashtag obrigatória <span class="opt">opcional · separe várias por vírgula</span></label>
+              <div class="row">
+                <input id="ruleKeyword" class="input grow" placeholder="#eusorteio">
+                <select id="ruleKeywordMode" class="input">
+                  <option value="any">qualquer uma</option>
+                  <option value="all">todas</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="ruleExclude">Excluir perfis <span class="opt">opcional · vírgula ou um por linha</span></label>
+              <textarea id="ruleExclude" class="input" rows="2" placeholder="@funcionario1, @parceiro"></textarea>
+            </div>
+
+            <div class="toggles">
+              <label class="switch"><input type="checkbox" id="ruleExcludeOwner" checked><span class="track"></span><span>Excluir o próprio perfil da publicação</span></label>
+              <label class="switch"><input type="checkbox" id="ruleIgnoreHidden" checked><span class="track"></span><span>Ignorar comentários ocultos</span></label>
+              <label class="switch" id="ruleRepliesWrap"><input type="checkbox" id="ruleIncludeReplies"><span class="track"></span><span>Contar respostas como participação</span></label>
+              <label class="switch"><input type="checkbox" id="ruleSaveAll" checked><span class="track"></span><span>Salvar a lista completa de participantes no histórico</span></label>
+            </div>
+
+            <div class="field">
+              <label for="ruleNotes">Observações <span class="opt">opcional</span></label>
+              <textarea id="ruleNotes" class="input" rows="2" placeholder="Prêmio, regulamento, responsável…"></textarea>
+            </div>
+          </form>
+
+          <aside class="card elig">
+            <p class="eyebrow">Participação válida</p>
+            <div class="elig-big" id="eligCount">0</div>
+            <p class="muted" id="eligLabel">chances no sorteio</p>
+            <ul class="elig-list" id="eligList"></ul>
+            <button type="button" class="btn primary block" data-goto="4" id="btnToDraw">Ir para o sorteio</button>
+            <button type="button" class="btn ghost block" data-goto="2">Voltar aos comentários</button>
+          </aside>
+        </div>
+      </div>
+
+      <!-- Passo 4: sorteio -->
+      <div class="step-panel" data-panel="4" hidden>
+        <div class="stage">
+          <div class="stage-glow" aria-hidden="true"></div>
+          <div class="stage-top">
+            <span class="pill" id="stageTitle">Sorteio</span>
+            <span class="pill ghost" id="stageMeta"></span>
+          </div>
+          <div class="slot" id="slot">
+            <div class="slot-label" id="slotLabel">Tudo pronto</div>
+            <div class="slot-name" id="slotName">Boa sorte!</div>
+            <div class="slot-text" id="slotText"></div>
+          </div>
+          <div class="stage-controls">
+            <label class="switch on-dark"><input type="checkbox" id="optFast"><span class="track"></span><span>Sem animação</span></label>
+            <button type="button" class="btn primary xl" id="btnDraw">Sortear</button>
+          </div>
+        </div>
+
+        <div class="results" id="results"></div>
+
+        <div class="step-nav" id="afterDraw" hidden>
+          <button type="button" class="btn ghost" data-goto="3">Ajustar regras</button>
+          <div class="row">
+            <button type="button" class="btn" id="btnViewReceipt">Ver comprovante</button>
+            <button type="button" class="btn primary" id="btnNewDraw">Novo sorteio</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Histórico ===== -->
+    <section class="view" id="view-history">
+      <header class="view-head">
+        <div>
+          <p class="eyebrow">Histórico</p>
+          <h1>Todos os sorteios realizados</h1>
+        </div>
+        <input type="search" id="historySearch" class="input" placeholder="Buscar por nome, código ou ganhador">
+      </header>
+      <div class="history-list" id="historyList"></div>
+    </section>
+
+    <!-- ===== Detalhe / comprovante ===== -->
+    <section class="view" id="view-detail">
+      <div id="detail"></div>
+    </section>
+
+    <!-- ===== Ajustes ===== -->
+    <section class="view" id="view-settings">
+      <header class="view-head">
+        <div>
+          <p class="eyebrow">Ajustes</p>
+          <h1>Conexão, backup e ajuda</h1>
+        </div>
+      </header>
+
+      <div class="settings-grid">
+        <div class="card">
+          <h3>Conexão com o Instagram</h3>
+          <div class="field">
+            <label for="setToken">Token de acesso</label>
+            <input type="password" id="setToken" class="input" autocomplete="off" spellcheck="false" placeholder="IGAA… ou EAA…">
+          </div>
+          <div class="grid2">
+            <div class="field">
+              <label for="setVersion">Versão da API</label>
+              <input id="setVersion" class="input" value="v23.0">
+            </div>
+            <div class="field">
+              <label>&nbsp;</label>
+              <label class="switch"><input type="checkbox" id="setRemember" checked><span class="track"></span><span>Lembrar neste navegador</span></label>
+            </div>
+          </div>
+          <div class="row">
+            <button type="button" class="btn primary" id="btnSaveSettings">Salvar</button>
+            <button type="button" class="btn ghost" id="btnForget">Esquecer token</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Backup do histórico</h3>
+          <p class="muted">O histórico fica salvo neste navegador. Exporte um backup regularmente para guardar em outro lugar ou levar para outro computador.</p>
+          <div class="row wrap">
+            <button type="button" class="btn" id="btnBackup">Exportar backup (.json)</button>
+            <label class="btn ghost file-btn">Restaurar backup<input type="file" id="restoreInput" accept=".json"></label>
+          </div>
+          <hr>
+          <p class="muted small">Comentários carregados pela API ficam em cache para retomar carregamentos longos.</p>
+          <button type="button" class="btn ghost" id="btnClearCache">Limpar cache de comentários</button>
+        </div>
+
+        <div class="card span2 help">
+          <h3>Como obter o token de acesso</h3>
+          <p class="muted">A API oficial só permite ler comentários de publicações da <strong>sua própria conta profissional</strong> (Comercial ou Criador de conteúdo). Para publicações de terceiros, use “Importar lista”.</p>
+          <div class="help-cols">
+            <div>
+              <h4>Opção A — API do Instagram (mais simples)</h4>
+              <ol>
+                <li>Acesse <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener">developers.facebook.com/apps</a> e crie um app do tipo <em>Empresa</em>.</li>
+                <li>Adicione o produto <strong>Instagram</strong> → “API com login do Instagram”.</li>
+                <li>Em <em>Gerar tokens de acesso</em>, adicione sua conta profissional e gere o token.</li>
+                <li>Permissões: <code>instagram_business_basic</code> e <code>instagram_business_manage_comments</code>.</li>
+                <li>Cole aqui o token (começa com <code>IG</code>). Ele vale 60 dias.</li>
+              </ol>
+            </div>
+            <div>
+              <h4>Opção B — API do Facebook (conta vinculada a uma Página)</h4>
+              <ol>
+                <li>Vincule a conta profissional do Instagram a uma Página do Facebook.</li>
+                <li>No <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener">Explorador da Graph API</a>, selecione seu app.</li>
+                <li>Permissões: <code>instagram_basic</code>, <code>instagram_manage_comments</code>, <code>pages_show_list</code>, <code>pages_read_engagement</code>.</li>
+                <li>Gere o token de usuário (começa com <code>EAA</code>) e cole aqui.</li>
+              </ol>
+            </div>
+          </div>
+          <p class="muted small">Sem limite de comentários: o app percorre todas as páginas da API. Se o Instagram aplicar limite de requisições, o carregamento espera e continua sozinho — e pode ser pausado e retomado depois, mesmo fechando o navegador.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<dialog id="modal" class="modal">
+  <form method="dialog">
+    <h3 id="modalTitle"></h3>
+    <p id="modalText" class="muted"></p>
+    <div class="row end">
+      <button value="cancel" class="btn ghost">Cancelar</button>
+      <button value="ok" class="btn primary" id="modalOk">Confirmar</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<canvas id="confetti" aria-hidden="true"></canvas>
+
+<script src="js/db.js"></script>
+<script src="js/instagram.js"></script>
+<script src="js/importer.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
