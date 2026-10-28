@@ -1,4 +1,4 @@
-# Sorteador de Comentários do Instagram
+# Sorteador — Instagram e números
 
 Aplicativo web (HTML + CSS + JavaScript puro, sem instalação) para sortear entre **todos** os comentários de uma publicação do Instagram, com histórico completo e comprovante de cada sorteio.
 
@@ -18,6 +18,15 @@ Aplicativo web (HTML + CSS + JavaScript puro, sem instalação) para sortear ent
 2. **Comentários** — leitura página por página até o fim, **sem limite**. Se o Instagram limitar as requisições, o app espera e continua sozinho. Dá para pausar e retomar depois, mesmo fechando o navegador (o progresso fica em cache).
 3. **Regras** — ganhadores, suplentes, 1 chance por perfil ou por comentário, menções mínimas, palavra/hashtag obrigatória, prazo, perfis excluídos, respostas, comentários ocultos.
 4. **Sorteio** — sorteio com `crypto.getRandomValues` (gerador criptográfico, sem viés). O resultado é **salvo antes da animação**, então não há como “sortear até sair quem eu quero” sem que isso fique registrado.
+
+## Sorteio de números (rifas, bingos)
+
+No menu lateral, **Números** abre o segundo modo:
+
+- **Intervalo**: todos os números de “De” até “Até” (até 1 bilhão), com a opção de tirar números do sorteio (`7, 13, 40-50`).
+- **Lista de vendidos**: um número por linha com o nome do comprador (`12 Maria Silva`, `10-15 Ana`, `27, 28, 31`) ou planilha CSV/TXT (`número;nome;contato`). O contato, como o telefone, é reconhecido automaticamente.
+- Quantidade a sortear, prêmios por posição, não repetir números, cada comprador ganha uma vez só, zeros à esquerda.
+- Mesmo gerador criptográfico, resultado salvo antes da animação, comprovante, histórico e nuvem do sorteio do Instagram.
 
 ## O que fica salvo em cada sorteio
 
@@ -61,4 +70,7 @@ firestore.rules    regras de segurança do Firestore
 js/instagram.js    cliente da API com paginação ilimitada e novas tentativas
 js/importer.js     leitura de CSV/JSON/texto e gerador da demonstração
 js/app.js          telas, regras, sorteio, histórico e comprovante
+js/numbers.js      sorteio de números (intervalo ou lista de vendidos)
+privacidade.html   Política de Privacidade
+termos.html        Termos de Uso
 ```

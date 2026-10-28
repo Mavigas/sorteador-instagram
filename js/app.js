@@ -887,19 +887,23 @@
     let list;
     try { list = await allDraws(); } catch (e) { box.innerHTML = `<div class="empty-state"><h3>Armazenamento indisponível</h3><p>${esc(e.message || e)}</p></div>`; return; }
     const q = fold($('#historySearch').value.trim().replace(/^@/, ''));
-    if (q) list = list.filter(d => fold([d.title, d.code, d.post?.caption, d.post?.username, ...d.results.map(r => r.comment.username)].join(' ')).includes(q));
+    const kind = S.historyKind || 'all';
+    if (kind !== 'all') list = list.filter(d => (d.kind || 'instagram') === kind);
+    if (q) list = list.filter(d => fold(d.kind === 'numbers' ? Numbers.searchText(d) : [d.title, d.code, d.post?.caption, d.post?.username, ...d.results.map(r => r.comment.username)].join(' ')).includes(q));
     if (!list.length) {
-      box.innerHTML = `<div class="empty-state"><h3>${q ? 'Nada encontrado' : 'Nenhum sorteio ainda'}</h3><p>${q ? 'Tente outro termo de busca.' : 'Os sorteios realizados aparecem aqui com todos os detalhes.'}</p>${q ? '' : '<button class="btn primary" data-goto-view="new">Fazer o primeiro sorteio</button>'}</div>`;
+      const filtered = q || kind !== 'all';
+      box.innerHTML = `<div class="empty-state"><h3>${filtered ? 'Nada encontrado' : 'Nenhum sorteio ainda'}</h3><p>${filtered ? 'Tente outro termo de busca ou outro filtro.' : 'Os sorteios realizados aparecem aqui com todos os detalhes.'}</p>${filtered ? '' : '<div class="row wrap" style="justify-content:center"><button class="btn primary" data-goto-view="new">Sortear comentários</button><button class="btn" data-goto-view="numbers">Sortear números</button></div>'}</div>`;
       return;
     }
     box.innerHTML = list.map(d => {
+      if (d.kind === 'numbers') return Numbers.historyItem(d);
       const winners = d.results.filter(r => r.role === 'ganhador');
       const subs = d.results.length - winners.length;
       return `<button type="button" class="h-item" data-draw="${esc(d.id)}">
         <span class="h-thumb">${d.post?.thumbnail ? `<img src="${esc(d.post.thumbnail)}" alt="" loading="lazy" onerror="this.remove()">` : ''}</span>
         <span class="h-main">
           <strong class="h-title">${esc(d.title)}</strong>
-          <span class="h-meta">${esc(d.code)} · ${esc(fmtDate(d.createdAt))} · ${esc(SOURCE_LABEL[d.source.type] || '')}${d.post?.username ? ' · @' + esc(d.post.username) : ''}</span>
+          <span class="h-meta">${esc(d.code)} · ${esc(fmtDate(d.createdAt))} · Instagram · ${esc(SOURCE_LABEL[d.source.type] || '')}${d.post?.username ? ' · @' + esc(d.post.username) : ''}</span>
           <span class="h-winners">${winners.map(w => `<span class="pill accent">🏆 @${esc(w.comment.username)}</span>`).join('')}${subs ? `<span class="pill">+${plural(subs, 'suplente', 'suplentes')}</span>` : ''}${d.demo ? '<span class="pill warn">Demo</span>' : ''}${d.load.complete ? '' : '<span class="pill warn">Lista incompleta</span>'}${d.owner && !d.synced ? '<span class="pill warn">Aguardando envio à nuvem</span>' : ''}</span>
         </span>
         <span class="h-side"><strong>${fmt(d.eligibility.entries)}</strong>participações</span>
@@ -912,6 +916,27 @@
      ========================================================= */
   const kv = rows => `<dl class="kv">${rows.filter(Boolean).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>`;
   const yesNo = b => (b ? 'Sim' : 'Não');
+
+  // Cabeçalho do comprovante, comum aos sorteios de Instagram e de números.
+  function detailHead(d) {
+    const kindLabel = d.kind === 'numbers' ? 'sorteio de números' : 'sorteio do Instagram';
+    return `
+      <button type="button" class="btn ghost back no-print" data-goto-view="history">← Histórico</button>
+      <header class="detail-head">
+        <div>
+          <p class="eyebrow">Comprovante · ${kindLabel}${d.demo ? ' · demonstração' : ''}</p>
+          <h1>${esc(d.title)}</h1>
+          <p class="code">${esc(d.code)} · realizado em ${esc(fmtDate(d.createdAt))}</p>
+          <p class="no-print" style="margin-top:8px">${d.owner ? (d.synced ? '<span class="pill ok">Salvo na sua conta Google</span>' : '<span class="pill warn">Aguardando envio à nuvem</span>') : '<span class="pill">Salvo só neste navegador</span>'}</p>
+        </div>
+        <div class="row wrap no-print">
+          <button type="button" class="btn" data-act="print">Imprimir / PDF</button>
+          <button type="button" class="btn" data-act="json">Exportar JSON</button>
+          <button type="button" class="btn" data-act="csv">Planilha CSV</button>
+          <button type="button" class="btn ghost danger" data-act="delete">Excluir</button>
+        </div>
+      </header>`;
+  }
 
   async function openDetail(id) {
     let d = await DB.get('draws', id);
@@ -926,27 +951,15 @@
       }
     }
     showView('detail');
+    $('#detail').dataset.id = d.id;
+    if (d.kind === 'numbers') return Numbers.renderDetail(d, detailHead(d));
     const R = d.rules;
     const P = d.post;
     const L = d.load;
     const reasons = Object.entries(d.eligibility.excluded || {}).filter(([, v]) => v);
 
     $('#detail').innerHTML = `
-      <button type="button" class="btn ghost back no-print" data-goto-view="history">← Histórico</button>
-      <header class="detail-head">
-        <div>
-          <p class="eyebrow">Comprovante de sorteio${d.demo ? ' · demonstração' : ''}</p>
-          <h1>${esc(d.title)}</h1>
-          <p class="code">${esc(d.code)} · realizado em ${esc(fmtDate(d.createdAt))}</p>
-          <p class="no-print" style="margin-top:8px">${d.owner ? (d.synced ? '<span class="pill ok">Salvo na sua conta Google</span>' : '<span class="pill warn">Aguardando envio à nuvem</span>') : '<span class="pill">Salvo só neste navegador</span>'}</p>
-        </div>
-        <div class="row wrap no-print">
-          <button type="button" class="btn" data-act="print">Imprimir / PDF</button>
-          <button type="button" class="btn" data-act="json">Exportar JSON</button>
-          <button type="button" class="btn" data-act="csv">Planilha CSV</button>
-          <button type="button" class="btn ghost danger" data-act="delete">Excluir</button>
-        </div>
-      </header>
+      ${detailHead(d)}
 
       ${L.complete ? '' : '<div class="card" style="border-color:var(--warn);background:var(--warn-soft)"><strong>Atenção:</strong> este sorteio foi feito antes de terminar o carregamento de todos os comentários.</div>'}
 
@@ -1059,7 +1072,9 @@
     if (!d) return;
     if (act === 'print') window.print();
     if (act === 'json') download(`${d.code}-${safeName(d.title)}.json`, JSON.stringify(d, null, 2), 'application/json');
-    if (act === 'csv') {
+    if (act === 'csv' && d.kind === 'numbers') {
+      download(`${d.code}-numeros.csv`, '﻿' + Numbers.csv(d), 'text/csv;charset=utf-8');
+    } else if (act === 'csv') {
       const byIndex = new Map(d.results.map(r => [r.entryIndex, roleLabel(r, d.rules)]));
       const head = ['resultado', 'n', 'id_comentario', 'perfil', 'comentario', 'data', 'curtidas', 'id_perfil', 'resposta_de'];
       const source = d.participants || d.results.map(r => ({ ...r.comment, _i: r.entryIndex }));
@@ -1411,6 +1426,11 @@
     $('#btnNewDraw').addEventListener('click', newDraw);
 
     $('#historySearch').addEventListener('input', debounce(renderHistory, 200));
+    $$('#historyKind button').forEach(b => b.addEventListener('click', () => {
+      S.historyKind = b.dataset.kind;
+      $$('#historyKind button').forEach(x => x.classList.toggle('is-active', x === b));
+      renderHistory();
+    }));
 
     $('#btnSaveSettings').addEventListener('click', saveSettingsForm);
     $('#btnForget').addEventListener('click', forgetToken);
@@ -1442,6 +1462,13 @@
     goStep(1);
     if (!window.indexedDB) toast('Este navegador não permite salvar o histórico (IndexedDB indisponível).', 'error', 10000);
   }
+
+  // Recursos compartilhados com o sorteio de números (js/numbers.js).
+  window.App = {
+    APP_VERSION, TABLE_LIMIT, S, $, $$, esc, fmt, plural, fmtDate, fold, debounce, sleep, uid,
+    toast, confirmDialog, busy, sha256, secureIndex, confetti, kv, yesNo, csvCell,
+    uploadDraw, updateHistoryCount, openDetail, showView,
+  };
 
   init();
 })();
