@@ -45,7 +45,8 @@ const IG = (() => {
     const code = e.code;
     if (code === 190) return 'Token inválido ou expirado. Gere um novo token e cole em Ajustes.';
     if (code === 10 || (code >= 200 && code < 300)) return 'O token não tem as permissões necessárias para ler comentários. Veja a ajuda em Ajustes.';
-    if (code === 100 && /nonexist|does not exist|Unsupported get/i.test(e.message || '')) return 'Publicação ou conta não encontrada para este token (a API só acessa publicações da sua própria conta).';
+    if (code === 100 && /nonexisting field/i.test(e.message || '')) return `Campo não suportado pela API (${e.message}).`;
+    if (code === 100 && /nonexist|does not exist|Unsupported get/i.test(e.message || '')) return `Publicação ou conta não encontrada para este token (a API só acessa publicações da sua própria conta). [${e.message}]`;
     return `Instagram: ${e.error_user_msg || e.message || 'erro desconhecido'} (código ${code})`;
   }
 
@@ -145,9 +146,16 @@ const IG = (() => {
       : '');
     if (/^\d{6,}$/.test(igId)) {
       try {
-        const a = await get(`${b}/${igId}?fields=id,username,name,profile_picture_url,media_count`, token);
+        // Só os campos essenciais; os extras vêm depois e não podem derrubar a conexão.
+        const a = await get(`${b}/${igId}?fields=id,username`, token);
         if (a.username) {
           try { localStorage.setItem(IG_ID_KEY, igId); } catch { /* sem storage */ }
+          try {
+            Object.assign(a, await get(`${b}/${igId}?fields=name,profile_picture_url,media_count`, token));
+          } catch (e) {
+            if (e.network) throw e;
+            console.warn('Campos extras da conta indisponíveis:', e);
+          }
           return [{ id: a.id, igUserId: a.id, username: a.username, name: a.name || '', picture: a.profile_picture_url || '', mediaCount: a.media_count, kind: 'facebook' }];
         }
       } catch (e) {
