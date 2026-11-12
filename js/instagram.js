@@ -12,7 +12,10 @@ const IG = (() => {
     constructor(message, info = {}) { super(message); Object.assign(this, info); }
   }
 
-  const kind = token => /^IG/i.test(token.trim()) ? 'instagram' : 'facebook';
+  // Tokens EAA do "login unificado" podem funcionar direto em graph.instagram.com.
+  // Quando isso é detectado em accounts(), o token passa a usar esse host.
+  const hostOverride = new Map();
+  const kind = token => hostOverride.get(token.trim()) || (/^IG/i.test(token.trim()) ? 'instagram' : 'facebook');
   const base = (token, version) =>
     (kind(token) === 'instagram' ? 'https://graph.instagram.com/' : 'https://graph.facebook.com/') + version;
 
@@ -88,17 +91,53 @@ const IG = (() => {
       return [{ id: me.id, igUserId: me.user_id || me.id, username: me.username, name: me.name || '', picture: me.profile_picture_url || '', mediaCount: me.media_count, kind: 'instagram' }];
     }
     const out = [];
-    let url = `${b}/me/accounts?fields=name,instagram_business_account{id,username,name,profile_picture_url,media_count}&limit=100`;
-    while (url) {
-      const d = await get(url, token);
-      for (const p of d.data || []) {
-        const a = p.instagram_business_account;
-        if (a) out.push({ id: a.id, igUserId: a.id, username: a.username, name: a.name || p.name, picture: a.profile_picture_url || '', mediaCount: a.media_count, page: p.name, kind: 'facebook' });
+    const errors = [];
+
+    // 1) Token de usuário do Facebook: contas do Instagram vinculadas às Páginas.
+    try {
+      let url = `${b}/me/accounts?fields=name,instagram_business_account{id,username,name,profile_picture_url,media_count}&limit=100`;
+      while (url) {
+        const d = await get(url, token);
+        for (const p of d.data || []) {
+          const a = p.instagram_business_account;
+          if (a) out.push({ id: a.id, igUserId: a.id, username: a.username, name: a.name || p.name, picture: a.profile_picture_url || '', mediaCount: a.media_count, page: p.name, kind: 'facebook' });
+        }
+        url = d.paging?.next || null;
       }
-      url = d.paging?.next || null;
+    } catch (e) {
+      if (e.network) throw e;
+      errors.push(e);
     }
-    if (!out.length) throw new ApiError('Nenhuma conta profissional do Instagram está vinculada às Páginas deste token.');
-    return out;
+    if (out.length) return out;
+
+    // 2) Token EAA ligado direto à conta do Instagram (login unificado), via graph.facebook.com.
+    try {
+      const me = await get(`${b}/me?fields=id,user_id,username,name,profile_picture_url,media_count`, token);
+      if (me.username) {
+        const id = me.user_id || me.id;
+        return [{ id, igUserId: id, username: me.username, name: me.name || '', picture: me.profile_picture_url || '', mediaCount: me.media_count, kind: 'facebook' }];
+      }
+    } catch (e) {
+      if (e.network) throw e;
+      errors.push(e);
+    }
+
+    // 3) O mesmo token EAA usado em graph.instagram.com.
+    try {
+      const ib = `https://graph.instagram.com/${version}`;
+      const me = await get(`${ib}/me?fields=id,user_id,username,name,profile_picture_url,account_type,media_count`, token);
+      if (me.username) {
+        hostOverride.set(token.trim(), 'instagram');
+        return [{ id: me.id, igUserId: me.user_id || me.id, username: me.username, name: me.name || '', picture: me.profile_picture_url || '', mediaCount: me.media_count, kind: 'instagram' }];
+      }
+    } catch (e) {
+      if (e.network) throw e;
+      errors.push(e);
+    }
+
+    console.warn('Tentativas de conexão com token EAA falharam:', errors);
+    const detail = errors.length ? ` Detalhe: ${errors[errors.length - 1].message}` : '';
+    throw new ApiError('Nenhuma conta profissional do Instagram foi encontrada para este token (nem por Página do Facebook, nem por login direto).' + detail);
   }
 
   async function media(token, version, account, nextUrl) {
