@@ -7,6 +7,7 @@ const IG = (() => {
   const COMMENT_FIELDS = 'id,text,timestamp,username,like_count,hidden,parent_id,from{id,username}';
   const MEDIA_FIELDS = 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,comments_count,like_count,username';
   const RATE_CODES = [4, 17, 32, 613, 80001, 80002];
+  const IG_ID_KEY = 'sorteador.igUserId';
 
   class ApiError extends Error {
     constructor(message, info = {}) { super(message); Object.assign(this, info); }
@@ -135,9 +136,30 @@ const IG = (() => {
       errors.push(e);
     }
 
+    // 4) Token de Usuário do Sistema (Business Suite): não há Página nem /me de Instagram,
+    //    mas o token acessa a conta pelo ID dela. O ID fica salvo neste navegador.
+    let saved = '';
+    try { saved = localStorage.getItem(IG_ID_KEY) || ''; } catch { /* sem storage */ }
+    const igId = saved || (typeof prompt === 'function'
+      ? String(prompt('Não encontrei a conta automaticamente.\nInforme o ID da conta do Instagram (número que começa com 1784…, aparece no painel da Meta):') || '').trim()
+      : '');
+    if (/^\d{6,}$/.test(igId)) {
+      try {
+        const a = await get(`${b}/${igId}?fields=id,username,name,profile_picture_url,media_count`, token);
+        if (a.username) {
+          try { localStorage.setItem(IG_ID_KEY, igId); } catch { /* sem storage */ }
+          return [{ id: a.id, igUserId: a.id, username: a.username, name: a.name || '', picture: a.profile_picture_url || '', mediaCount: a.media_count, kind: 'facebook' }];
+        }
+      } catch (e) {
+        if (e.network) throw e;
+        if (saved) { try { localStorage.removeItem(IG_ID_KEY); } catch { /* sem storage */ } }
+        errors.push(e);
+      }
+    }
+
     console.warn('Tentativas de conexão com token EAA falharam:', errors);
-    const detail = errors.length ? ` Detalhe: ${errors[errors.length - 1].message}` : '';
-    throw new ApiError('Nenhuma conta profissional do Instagram foi encontrada para este token (nem por Página do Facebook, nem por login direto).' + detail);
+    const detail = errors.length ? ` Detalhes: ${errors.map((e, i) => `(${i + 1}) ${e.message}`).join(' ')}` : '';
+    throw new ApiError('Nenhuma conta profissional do Instagram foi encontrada para este token.' + detail);
   }
 
   async function media(token, version, account, nextUrl) {
